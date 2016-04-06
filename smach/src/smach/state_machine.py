@@ -3,6 +3,8 @@ import threading
 import traceback
 from contextlib import contextmanager
 
+import pickle
+
 import smach
 
 __all__ = ['StateMachine']
@@ -70,6 +72,13 @@ class StateMachine(smach.container.Container):
         # Thread for execution of state switching
         self._execute_thread = None
         self.userdata = smach.UserData()
+
+        # Structural Coverage Additions
+        self.cov_states = {}
+        self.cov_id = StateMachine.cov_instance_counter
+        StateMachine.cov_instance_counter += 1
+
+    cov_instance_counter = 0
 
     ### Construction methods
     @staticmethod
@@ -142,6 +151,9 @@ class StateMachine(smach.container.Container):
             # Reset connector outcomes and last added label
             self._connector_outcomes = []
             self._last_added_label = None
+
+        # Structural Coverage Additions
+        self.cov_states[label] = dict.fromkeys(transitions, False)
 
         return state
 
@@ -265,6 +277,9 @@ class StateMachine(smach.container.Container):
                      self._current_state,
                      self._current_state.get_registered_outcomes()))
 
+        # Coverage Additions
+        self.cov_states[self._current_label][outcome] = True
+
         # Check if this outcome is actually mapped to any target
         if outcome not in self._current_transitions:
             raise smach.InvalidTransitionError("Outcome '%s' of state '%s' is not bound to any transition target. Bound transitions include: %s" %
@@ -363,6 +378,10 @@ class StateMachine(smach.container.Container):
 
             # We're no longer running
             self._is_running = False
+
+        # Save the coverage information
+        with open('.scov_' + str(self.cov_id), 'w') as covfile:
+            pickle.dump(self.cov_states, covfile)
 
         return container_outcome
 
